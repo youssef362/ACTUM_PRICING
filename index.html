@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ACTUM — AI Pricing Calculator</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#06060f;--card:#0f0f22;--card2:#161628;--card3:#1c1c35;
+  --cyan:#00d4ff;--green:#00e5a0;--pink:#ff3380;
+  --amber:#ffb800;--purple:#8855ff;
+  --muted:#6a6a90;--dim:#2e2e55;
+  --border:rgba(255,255,255,0.07);
+  --text:#e2e2f0;--text2:#9090b8;
+}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'Outfit',sans-serif;font-weight:300;
+  min-height:100vh;display:flex;flex-direction:column;
+  align-items:center;padding:48px 24px 80px;
+  cursor:none;overflow-x:hidden;
+}
+
+/* Ambient glow blobs */
+body::before{
+  content:'';position:fixed;top:-200px;left:50%;transform:translateX(-50%);
+  width:800px;height:400px;border-radius:50%;
+  background:radial-gradient(ellipse,rgba(136,85,255,.07) 0%,transparent 70%);
+  pointer-events:none;z-index:0;
+}
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9990;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+}
+
+/* Cursor */
+.cursor{position:fixed;width:8px;height:8px;background:var(--cyan);border-radius:50%;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);box-shadow:0 0 16px rgba(0,212,255,.7);transition:width .15s,height .15s,background .15s;}
+.cursor-trail{position:fixed;width:28px;height:28px;border:1px solid rgba(0,212,255,.18);border-radius:50%;pointer-events:none;z-index:9998;transform:translate(-50%,-50%);transition:left .1s linear,top .1s linear;}
+
+/* Layout */
+.layout-scale{width:100%;max-width:780px;display:flex;flex-direction:column;align-items:center;position:relative;z-index:1;}
+
+/* Page header */
+.page-header{text-align:center;margin-bottom:40px;width:100%;}
+.page-logo{margin-bottom:20px;display:flex;justify-content:center;}
+.page-logo svg{opacity:.85;filter:drop-shadow(0 0 20px rgba(0,212,255,.15));}
+.page-title{font-family:'Syne',sans-serif;font-size:2.6rem;font-weight:800;letter-spacing:-.04em;line-height:1;margin-bottom:10px;}
+.page-title em{font-style:normal;background:linear-gradient(100deg,var(--cyan) 0%,var(--green) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.page-sub{font-size:.875rem;color:var(--muted);line-height:1.65;max-width:480px;margin:0 auto;}
+
+/* Tabs */
+.tabs{
+  display:flex;gap:4px;margin-bottom:24px;
+  background:rgba(255,255,255,.025);
+  border:1px solid var(--border);
+  border-radius:14px;padding:4px;
+  width:100%;
+}
+.tab{
+  flex:1;padding:14px 12px 12px;border-radius:10px;border:none;
+  background:transparent;color:var(--muted);
+  font-family:'DM Mono',monospace;font-size:.6rem;
+  letter-spacing:.12em;text-transform:uppercase;
+  cursor:pointer;transition:all .22s ease;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  border-bottom:2px solid transparent;
+}
+.tab-icon{font-size:1.2rem;line-height:1;}
+.tab-label{font-size:.58rem;letter-spacing:.15em;font-weight:500;}
+.tab:hover{color:var(--text2);background:rgba(255,255,255,.03);}
+.tab.active{background:var(--card);color:var(--text);box-shadow:0 2px 20px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.05);}
+.tab.voice.active{border-bottom-color:var(--cyan);}
+.tab.text.active{border-bottom-color:var(--green);}
+.tab.avatar.active{border-bottom-color:var(--purple);}
+
+/* Panels */
+.panel{display:none;width:100%;animation:fadeIn .28s ease;}
+.panel.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+/* Card */
+.calc{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:20px;
+  padding:44px 48px 48px;
+  width:100%;
+  box-shadow:0 40px 100px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.03);
+  position:relative;overflow:hidden;
+}
+.calc::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;border-radius:20px 20px 0 0;}
+.calc::after{content:'';position:absolute;top:-120px;right:-120px;width:340px;height:340px;border-radius:50%;pointer-events:none;}
+.panel-voice .calc::before{background:linear-gradient(90deg,transparent,var(--cyan),var(--green),transparent);}
+.panel-voice .calc::after{background:radial-gradient(circle,rgba(0,212,255,.045) 0%,transparent 65%);}
+.panel-text  .calc::before{background:linear-gradient(90deg,transparent,var(--purple),var(--cyan),transparent);}
+.panel-text  .calc::after{background:radial-gradient(circle,rgba(136,85,255,.04) 0%,transparent 65%);}
+.panel-avatar .calc::before{background:linear-gradient(90deg,transparent,var(--purple),var(--pink),transparent);}
+.panel-avatar .calc::after{background:radial-gradient(circle,rgba(136,85,255,.045) 0%,transparent 65%);}
+
+/* Two-column layout for calc internals */
+.calc-body{display:grid;grid-template-columns:1fr 1fr;gap:40px;align-items:start;}
+.calc-body.single{grid-template-columns:1fr;}
+
+/* Header */
+.header{margin-bottom:32px;}
+.title{font-family:'Syne',sans-serif;font-size:1.55rem;font-weight:800;letter-spacing:-.025em;line-height:1.15;}
+.title span{color:var(--cyan);}
+.panel-text  .title span{color:var(--green);}
+.panel-avatar .title span{color:#c090ff;}
+.subtitle{font-family:'DM Mono',monospace;font-size:.52rem;color:var(--dim);letter-spacing:.2em;text-transform:uppercase;margin-top:8px;}
+.badge-tag{display:inline-block;margin-top:8px;padding:4px 12px;border-radius:20px;font-family:'DM Mono',monospace;font-size:.52rem;letter-spacing:.18em;text-transform:uppercase;}
+.panel-text  .badge-tag{background:rgba(0,212,255,.07);border:1px solid rgba(0,212,255,.15);color:rgba(0,212,255,.8);}
+.panel-avatar .badge-tag{background:rgba(136,85,255,.07);border:1px solid rgba(136,85,255,.2);color:rgba(170,130,255,.8);}
+
+/* Section labels */
+.sec{
+  font-family:'DM Mono',monospace;font-size:.5rem;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--dim);
+  display:flex;align-items:center;gap:10px;
+  margin:28px 0 16px;
+}
+.sec:first-child{margin-top:0;}
+.sec::after{content:'';flex:1;height:1px;background:rgba(255,255,255,.04);}
+
+/* Sliders */
+.sl-group{margin-bottom:22px;}
+.sl-group:last-child{margin-bottom:0;}
+.sl-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:11px;}
+.sl-label{font-size:.82rem;color:var(--text2);font-weight:400;}
+.sl-val{font-family:'DM Mono',monospace;font-size:.92rem;font-weight:500;color:var(--green);}
+.sl-unit{font-size:.65rem;color:var(--muted);margin-left:2px;}
+input[type=range]{
+  width:100%;-webkit-appearance:none;height:3px;border-radius:2px;outline:none;cursor:pointer;
+  background:linear-gradient(to right,var(--cyan) var(--pct,0%),rgba(255,255,255,0.07) var(--pct,0%));
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:18px;height:18px;border-radius:50%;
+  background:var(--card);border:2px solid var(--cyan);
+  box-shadow:0 0 14px rgba(0,212,255,.5),0 2px 6px rgba(0,0,0,.4);
+  cursor:pointer;transition:transform .15s,box-shadow .15s;
+}
+input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.2);box-shadow:0 0 20px rgba(0,212,255,.7),0 2px 8px rgba(0,0,0,.4);}
+.sl-pair{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+
+/* Error */
+.error-box{display:none;background:rgba(255,51,128,.06);border:1px solid rgba(255,51,128,.2);border-radius:10px;padding:14px 16px;margin:16px 0 0;}
+.error-box.show{display:block;}
+.error-title{font-family:'Syne',sans-serif;font-size:.85rem;font-weight:800;color:var(--pink);margin-bottom:5px;}
+.error-body{font-size:.75rem;color:rgba(255,100,150,.7);line-height:1.6;}
+.error-body strong{color:var(--pink);}
+
+/* Divider */
+.divider{height:1px;background:rgba(255,255,255,.05);margin:28px 0;}
+
+/* Results toggle */
+#v-results,#t-results{transition:opacity .3s;}
+#v-results.hidden,#t-results.hidden{opacity:0;pointer-events:none;}
+
+/* Cost boxes */
+.cost-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.cost-box{
+  background:var(--card2);
+  border:1px solid var(--border);
+  border-radius:12px;padding:18px 16px 14px;
+  text-align:center;transition:border-color .2s,box-shadow .2s;
+}
+.cost-box-label{font-size:.62rem;color:var(--muted);margin-bottom:10px;line-height:1.5;letter-spacing:.02em;}
+.cost-val{font-family:'DM Mono',monospace;font-weight:700;line-height:1;}
+.cost-val.ai{color:var(--green);font-size:clamp(.72rem,2.5vw,1.2rem);white-space:nowrap;}
+.cost-val.hm{color:var(--pink);font-size:clamp(.72rem,2.5vw,1.2rem);white-space:nowrap;}
+.per-mo{font-family:'DM Mono',monospace;font-size:.44rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;margin-top:6px;}
+.cost-box.tap{cursor:pointer;}
+.cost-box.tap:hover{border-color:rgba(255,51,128,.28);box-shadow:0 0 20px rgba(255,51,128,.05);}
+.pulse-hint{font-family:'DM Mono',monospace;font-size:.44rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-top:6px;display:flex;align-items:center;justify-content:center;gap:4px;}
+.pulse-dot{width:4px;height:4px;border-radius:50%;background:var(--pink);animation:pdot 1.8s infinite;}
+@keyframes pdot{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.2;transform:scale(.4);}}
+
+/* Analysis panel */
+.ap{max-height:0;overflow:hidden;opacity:0;margin-top:0;transition:max-height .45s cubic-bezier(.4,0,.2,1),opacity .35s,margin-top .35s;}
+.ap.open{max-height:640px;opacity:1;margin-top:10px;}
+.ap-inner{background:rgba(10,10,25,.95);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:20px;position:relative;}
+.ap-inner::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;border-radius:12px 12px 0 0;background:linear-gradient(90deg,transparent,rgba(0,212,255,.4),rgba(0,229,160,.4),transparent);}
+.ap-title{font-family:'Syne',sans-serif;font-size:.9rem;font-weight:800;margin-bottom:2px;}
+.ap-sub{font-family:'DM Mono',monospace;font-size:.48rem;color:var(--dim);letter-spacing:.16em;text-transform:uppercase;margin-bottom:14px;}
+.ap-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(255,255,255,.04);gap:10px;}
+.ap-row:last-child{border-bottom:none;padding-bottom:0;}
+.ap-lbl{font-size:.72rem;color:#6060a0;flex-shrink:0;}
+.ap-val{font-family:'DM Mono',monospace;font-size:.78rem;font-weight:500;text-align:right;}
+.cap-breakdown{margin-top:10px;padding:10px 12px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);border-radius:8px;}
+.cap-breakdown-title{font-family:'DM Mono',monospace;font-size:.48rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-bottom:8px;}
+.cap-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;}
+.cap-row-lbl{font-size:.68rem;color:#5a5a88;}
+.cap-row-val{font-family:'DM Mono',monospace;font-size:.68rem;color:var(--muted);}
+.cap-row-val.deducted{color:#3a3a68;text-decoration:line-through;}
+.cap-row.total .cap-row-lbl{color:#b0b0d0;}
+.cap-row.total .cap-row-val{color:var(--cyan);}
+
+/* Badges */
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-family:'DM Mono',monospace;font-size:.62rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;}
+.b-g{background:rgba(0,229,160,.09);color:var(--green);border:1px solid rgba(0,229,160,.18);}
+.b-a{background:rgba(255,184,0,.09);color:var(--amber);border:1px solid rgba(255,184,0,.18);}
+.b-r{background:rgba(255,51,128,.09);color:var(--pink);border:1px solid rgba(255,51,128,.18);}
+
+/* Savings */
+.savings-wrap{
+  background:linear-gradient(135deg,rgba(0,229,160,.04),rgba(0,212,255,.02));
+  border:1px solid rgba(0,229,160,.1);
+  border-radius:12px;padding:20px 18px 16px;
+  text-align:center;margin-bottom:10px;
+}
+.savings-label{font-size:.65rem;color:var(--muted);margin-bottom:7px;letter-spacing:.04em;}
+.savings-val{font-family:'DM Mono',monospace;font-weight:700;line-height:1;transition:color .35s,text-shadow .35s;font-size:clamp(.9rem,3.5vw,1.75rem);white-space:nowrap;}
+.savings-note{display:none;margin-top:10px;font-size:.68rem;color:#5a5a80;line-height:1.55;text-align:left;padding:10px 12px;background:rgba(255,51,128,.04);border:1px solid rgba(255,51,128,.1);border-radius:8px;}
+.savings-note.show{display:block;}
+
+/* Setup note */
+.setup-note{
+  background:rgba(136,85,255,.06);border:1px solid rgba(136,85,255,.14);
+  border-radius:12px;padding:14px 16px;
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+}
+.s-left{font-size:.68rem;color:var(--muted);line-height:1.55;}
+.s-left strong{color:#b090ff;font-weight:600;display:block;margin-bottom:2px;}
+.s-fine{font-size:.62rem;color:var(--dim);display:block;margin-top:1px;}
+.s-val{font-family:'DM Mono',monospace;font-size:.76rem;color:#b090ff;white-space:nowrap;text-align:right;}
+.s-free{font-family:'DM Mono',monospace;font-size:.72rem;font-weight:700;color:var(--green);text-align:right;display:none;letter-spacing:.08em;text-transform:uppercase;margin-top:3px;}
+.setup-note.is-free .s-val{text-decoration:line-through;color:var(--dim);}
+.setup-note.is-free .s-free{display:block;}
+.s-vals{text-align:right;}
+.pricing-note{margin-top:10px;padding:11px 14px;background:rgba(136,85,255,.04);border:1px solid rgba(136,85,255,.09);border-radius:9px;font-size:.64rem;color:#6060a0;line-height:1.65;}
+.pricing-note strong{color:#8866bb;}
+
+/* Avatar specifics */
+.tier-wrap{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px;}
+.tier-btn{background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:14px 10px;text-align:center;cursor:pointer;transition:border-color .2s,background .2s;}
+.tier-btn.active{background:rgba(136,85,255,.09);border-color:rgba(136,85,255,.35);}
+.tier-btn-name{font-family:'Syne',sans-serif;font-size:.8rem;font-weight:700;color:#7740cc;margin-bottom:4px;}
+.tier-btn.active .tier-btn-name{color:#c8a8ff;}
+.tier-btn-range{font-family:'DM Mono',monospace;font-size:.56rem;color:var(--dim);}
+.tier-btn.active .tier-btn-range{color:#9065cc;}
+.tier-note{font-size:.6rem;color:#3e3e68;margin-top:5px;line-height:1.4;}
+.tier-btn.active .tier-note{color:#7050a0;}
+.result-box{background:var(--card2);border:1px solid rgba(136,85,255,.18);border-radius:14px;padding:24px 20px 20px;text-align:center;position:relative;overflow:hidden;}
+.result-box::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(136,85,255,.5),transparent);}
+.result-label{font-size:.64rem;color:var(--muted);margin-bottom:10px;letter-spacing:.06em;}
+.result-val{font-family:'DM Mono',monospace;font-weight:700;font-size:clamp(1.5rem,5vw,2.3rem);color:#b090ff;line-height:1;white-space:nowrap;}
+.result-val.glow{text-shadow:0 0 36px rgba(136,85,255,.45);}
+.per-mo{font-family:'DM Mono',monospace;font-size:.44rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;margin-top:7px;}
+.result-sub{margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.04);display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.result-sub-item{text-align:center;flex:1;}
+.result-sub-label{font-size:.56rem;color:var(--dim);margin-bottom:4px;text-transform:uppercase;letter-spacing:.1em;font-family:'DM Mono',monospace;}
+.result-sub-val{font-family:'DM Mono',monospace;font-size:.75rem;color:var(--muted);}
+.result-sub-val.hi{color:#b090ff;}
+
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cur"></div>
+<div class="cursor-trail" id="tr"></div>
+
+<div class="layout-scale"><div class="page-header">
+  <div class="page-logo"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 500" width="180" height="47" fill="none"><path fill="#fff" d="M542 141h45v210h-45zm-243 0h45v196h-45zm448-45v45H587V96zm45 45v45h-45v-45zm0 165v45h-45v-45zm-448 46v45h-45v-45zm134-106v45H344v-45zm269 105v45H587v-45zm-224 0v45h-45v-45zm0-255v45H344V96zm559 0h250v175c0 69.036-55.96 125-125 125s-125-55.964-125-125zm520 0v45h-249V96zm0 254v45h-45v-45zm-249-209h45v254h-45zm102 0h45v254h-45zm102 0h45v194h-45zm-1079 0h45v210h-45zm524-44v45H814V97zm60 0v45h-45V97z"/><path fill="#fff" d="M915 141h45v255h-45z"/></svg></div>
+  <h1 class="page-title">AI <em>Pricing</em> Calculator</h1>
+  <p class="page-sub">Compare the cost of AI automation against your current human team across Voice, Text, and Avatar services.</p>
+</div>
+
+<div class="tabs">
+  <button class="tab voice active" onclick="switchTab('voice')">
+    <span class="tab-icon">🎙</span>
+    <span class="tab-label">Voice AI</span>
+  </button>
+  <button class="tab text" onclick="switchTab('text')">
+    <span class="tab-icon">💬</span>
+    <span class="tab-label">Text Bot</span>
+  </button>
+  <button class="tab avatar" onclick="switchTab('avatar')">
+    <span class="tab-icon">🧑‍💻</span>
+    <span class="tab-label">Avatar</span>
+  </button>
+</div>
+
+<div class="panel panel-voice active" id="panel-voice">
+<div class="calc">
+  <div class="header">
+    <div class="title">Voice <span>AI</span> ROI Calculator</div>
+    <div class="subtitle">AI Voice Agent vs Human Call Center</div>
+  </div>
+
+  <!-- ── INPUTS ── -->
+  <div class="sec">Call Volume</div>
+
+  <div class="sl-group">
+    <div class="sl-top"><span class="sl-label">Calls per month</span><span class="sl-val" id="v-v-calls">1,000</span></div>
+    <input type="range" id="v-s-calls" min="0" max="14" step="1" value="2" oninput="voiceGo()">
+  </div>
+
+  <div class="sl-group">
+    <div class="sl-top"><span class="sl-label">Average call length</span><span class="sl-val" id="v-v-len">4 <span class="sl-unit">min</span></span></div>
+    <input type="range" id="v-s-len" min="1" max="60" step="1" value="4" oninput="voiceGo()">
+  </div>
+
+  <div class="sec">Human Staffing</div>
+
+  <div class="sl-group">
+    <div class="sl-top"><span class="sl-label">Monthly salary per agent</span><span class="sl-val" id="v-v-sal">$2,000</span></div>
+    <input type="range" id="v-s-sal" min="100" max="10000" step="100" value="2000" oninput="voiceGo()">
+  </div>
+
+  <div class="sl-group">
+    <div class="sl-top"><span class="sl-label">Number of agents</span><span class="sl-val" id="v-v-agents">1</span></div>
+    <input type="range" id="v-s-agents" min="1" max="200" step="1" value="1" oninput="voiceGo()">
+  </div>
+
+  <div class="sl-pair" style="margin-bottom:0">
+    <div class="sl-group" style="margin-bottom:0">
+      <div class="sl-top"><span class="sl-label" style="font-size:.8rem;">Hours / day</span><span class="sl-val" id="v-v-hrs">8</span></div>
+      <input type="range" id="v-s-hrs" min="1" max="24" step="1" value="8" oninput="voiceGo()">
+    </div>
+    <div class="sl-group" style="margin-bottom:0">
+      <div class="sl-top"><span class="sl-label" style="font-size:.8rem;">Days / month</span><span class="sl-val" id="v-v-days">22</span></div>
+      <input type="range" id="v-s-days" min="1" max="31" step="1" value="22" oninput="voiceGo()">
+    </div>
+  </div>
+
+  <!-- ── VALIDATION ERROR ── -->
+  <div class="error-box" id="v-error-box">
+    <div class="error-title">⚠ Insufficient Staffing</div>
+    <div class="error-body" id="v-error-body">Your team cannot handle this call volume.</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── RESULTS ── -->
+  <div id="v-results">
+
+    <div class="cost-row">
+      <div class="cost-box">
+        <div class="cost-box-label">Estimated<br>Automation Cost</div>
+        <div class="cost-val ai" id="v-r-ai">—</div>
+        <div class="per-mo">per month</div>
+      </div>
+      <div class="cost-box tap" onclick="voiceTogglePanel()">
+        <div class="cost-box-label">Monthly Human<br>Staffing Cost</div>
+        <div class="cost-val hm" id="v-r-hm">—</div>
+        <div class="pulse-hint"><span class="pulse-dot"></span>tap for analysis</div>
+      </div>
+    </div>
+
+    <!-- ── ANALYSIS PANEL ── -->
+    <div class="ap" id="v-ap">
+      <div class="ap-inner">
+        <div class="ap-title">Staffing Capacity Report</div>
+        <div class="ap-sub">Industry-standard workforce model</div>
+
+        <div class="ap-row">
+          <span class="ap-lbl">📞 Total workload</span>
+          <span class="ap-val" id="v-p-workload" style="color:var(--cyan)">—</span>
+        </div>
+
+        <div class="ap-row">
+          <span class="ap-lbl">📈 Agent workload</span>
+          <span class="ap-val" id="v-p-workload-pct">—</span>
+        </div>
+
+        <div class="ap-row" id="v-p-ot-row" style="display:none;">
+          <span class="ap-lbl">⏰ Overtime premium</span>
+          <span class="ap-val" id="v-p-ot" style="color:var(--amber);">—</span>
+        </div>
+
+        <!-- capacity breakdown -->
+        <div class="cap-breakdown">
+
+          <!-- header row -->
+          <div class="cap-row cb-header" style="margin-bottom:4px;">
+            <span class="cap-row-lbl" style="flex:1;color:var(--dim);">Factor</span>
+            <span class="cap-row-val" style="color:var(--dim);font-size:.6rem;width:48px;text-align:right;">Days</span>
+            <span class="cap-row-val" style="color:var(--dim);font-size:.6rem;width:80px;text-align:right;">1 Agent</span>
+          </div>
+
+          <div class="cap-row">
+            <span class="cap-row-lbl" style="flex:1;">Scheduled time</span>
+            <span class="cap-row-val" id="v-cb-raw" style="width:48px;text-align:right;">—</span>
+            <span class="cap-row-val" style="width:80px;text-align:right;color:var(--muted);">—</span>
+          </div>
+          <div class="cap-row">
+            <span class="cap-row-lbl" style="flex:1;">− Vacation &amp; sick (12.7%)</span>
+            <span class="cap-row-val deducted" id="v-cb-avail" style="width:48px;text-align:right;">—</span>
+            <span class="cap-row-val" id="v-cb-avail-cost1" style="width:80px;text-align:right;color:#ff3380;font-size:.72rem;">—</span>
+          </div>
+          <div class="cap-row">
+            <span class="cap-row-lbl" style="flex:1;">− Breaks &amp; admin (18.75%)</span>
+            <span class="cap-row-val deducted" id="v-cb-prod" style="width:48px;text-align:right;">—</span>
+            <span class="cap-row-val" id="v-cb-prod-cost1" style="width:80px;text-align:right;color:#ff3380;font-size:.72rem;">—</span>
+          </div>
+          <div class="cap-row">
+            <span class="cap-row-lbl" style="flex:1;">− Non-call time (25%)</span>
+            <span class="cap-row-val deducted" id="v-cb-occ" style="width:48px;text-align:right;">—</span>
+            <span class="cap-row-val" id="v-cb-occ-cost1" style="width:80px;text-align:right;color:#ff3380;font-size:.72rem;">—</span>
+          </div>
+          <div class="cap-row total" style="margin-top:6px;border-top:1px solid rgba(255,255,255,.07);padding-top:8px;">
+            <span class="cap-row-lbl" style="flex:1;">✓ Effective productive</span>
+            <span class="cap-row-val" id="v-cb-eff" style="width:48px;text-align:right;">—</span>
+            <span class="cap-row-val" style="width:80px;text-align:right;color:var(--dim);font-size:.7rem;">—</span>
+          </div>
+          <div class="cap-row" style="background:rgba(255,51,128,.05);border:1px solid rgba(255,51,128,.12);border-radius:6px;padding:8px 6px;margin-top:6px;">
+            <span class="cap-row-lbl" style="flex:1;color:#c06080;">💸 Paid but unproductive</span>
+            <span class="cap-row-val" id="v-cb-lost-days" style="width:48px;text-align:right;color:#ff3380;">—</span>
+            <span class="cap-row-val" id="v-cb-lost-cost1" style="width:80px;text-align:right;color:#ff3380;font-weight:600;">—</span>
+          </div>
+          <div class="cap-row" style="background:rgba(255,51,128,.09);border:1px solid rgba(255,51,128,.2);border-radius:6px;padding:8px 6px;margin-top:4px;">
+            <span class="cap-row-lbl" style="flex:1;color:#ff3380;font-weight:600;" id="v-cb-total-lbl">💸 Total loss — all agents</span>
+            <span class="cap-row-val" id="v-cb-lost-days-n" style="width:48px;text-align:right;color:#ff3380;font-weight:600;">—</span>
+            <span class="cap-row-val" id="v-cb-lost-costn" style="width:80px;text-align:right;color:#ff3380;font-weight:700;font-size:.82rem;">—</span>
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── SAVINGS ── -->
+    <div class="savings-wrap" style="margin-top:10px;">
+      <div class="savings-label">Monthly Savings with AI</div>
+      <div class="savings-val" id="v-r-save">—</div>
+      <div style="font-family:'DM Mono',monospace;font-size:.49rem;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin-top:5px;">per month</div>
+      <div class="savings-note" id="v-savings-note">⚠ At this call volume, per-minute AI costs exceed your current staffing cost. Consider volume discounts or a hybrid staffing model.</div>
+    </div>
+
+    <!-- ── SETUP NOTE ── -->
+    <div class="setup-note" id="v-setup-note" style="margin-top:10px;">
+      <div class="s-left">
+        <strong>One-time setup fee</strong>
+        <span class="s-fine">Not included in monthly cost</span>
+      </div>
+      <div>
+        <div class="s-val">$5,250 – $6,750</div>
+        <div class="s-free">FREE</div>
+      </div>
+    </div>
+
+  </div><!-- /#results -->
+</div>
+
+</div>
+
+<div class="panel panel-text" id="panel-text">
+<div class="calc">
+  <div class="header">
+    <div class="title">Text <span>Bot</span> ROI Calculator</div>
+    <div class="badge-tag">AI Text Agent vs Human Support Team</div>
+  </div>
+
+  <!-- ── INPUTS ── -->
+  <div class="sec">Enquiry Volume</div>
+
+  <div class="sl-group">
+    <div class="sl-top"><span class="sl-label">Monthly active users (MAU)</span><span class="sl-val" id="t-v-enq">1,000</span></div>
+    <input type="range" id="t-s-enq" min="0" max="14" step="1" value="2" oninput="textGo()">
+  </div>
+
+  <div class="sec">Handling Time</div>
+
+  <div class="sl-group">
+    <div class="sl-top"><span class="sl-label">Avg handling time per enquiry</span><span class="sl-val" id="t-v-aht">5 <span class="sl-unit">min</span></span></div>
+    <input type="range" id="t-s-aht" min="1" max="30" step="1" value="5" oninput="textGo()">
+  </div>
+
+  <div class="sec">Human Staffing</div>
+
+  <div class="sl-group">
+    <div class="sl-top"><span class="sl-label">Monthly salary per agent</span><span class="sl-val" id="t-v-sal">$2,000</span></div>
+    <input type="range" id="t-s-sal" min="100" max="10000" step="100" value="2000" oninput="textGo()">
+  </div>
+
+  <div class="sl-group">
+    <div class="sl-top"><span class="sl-label">Number of agents</span><span class="sl-val" id="t-v-agents">1</span></div>
+    <input type="range" id="t-s-agents" min="1" max="200" step="1" value="1" oninput="textGo()">
+  </div>
+
+  <div class="sl-pair" style="margin-bottom:0">
+    <div class="sl-group" style="margin-bottom:0">
+      <div class="sl-top"><span class="sl-label" style="font-size:.8rem;">Hours / day</span><span class="sl-val" id="t-v-hrs">8</span></div>
+      <input type="range" id="t-s-hrs" min="1" max="24" step="1" value="8" oninput="textGo()">
+    </div>
+    <div class="sl-group" style="margin-bottom:0">
+      <div class="sl-top"><span class="sl-label" style="font-size:.8rem;">Days / month</span><span class="sl-val" id="t-v-days">22</span></div>
+      <input type="range" id="t-s-days" min="1" max="31" step="1" value="22" oninput="textGo()">
+    </div>
+  </div>
+
+  <!-- ── VALIDATION ERROR ── -->
+  <div class="error-box" id="t-error-box">
+    <div class="error-title">⚠ Insufficient Staffing</div>
+    <div class="error-body" id="t-error-body">Your team cannot handle this enquiry volume.</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ── RESULTS ── -->
+  <div id="t-results">
+
+    <div class="cost-row">
+      <div class="cost-box">
+        <div class="cost-box-label">Estimated<br>Automation Cost</div>
+        <div class="cost-val ai" id="t-r-ai">—</div>
+        <div class="per-mo">per month</div>
+      </div>
+      <div class="cost-box tap" onclick="textTogglePanel()">
+        <div class="cost-box-label">Monthly Human<br>Staffing Cost</div>
+        <div class="cost-val hm" id="t-r-hm">—</div>
+        <div class="pulse-hint"><span class="pulse-dot"></span>tap for analysis</div>
+      </div>
+    </div>
+
+    <!-- ── ANALYSIS PANEL ── -->
+    <div class="ap" id="t-ap">
+      <div class="ap-inner">
+        <div class="ap-title">Staffing Capacity Report</div>
+        <div class="ap-sub">Industry-standard workforce model</div>
+
+        <div class="ap-row">
+          <span class="ap-lbl">💬 Total enquiries</span>
+          <span class="ap-val" id="t-p-enq" style="color:var(--cyan)">—</span>
+        </div>
+        <div class="ap-row">
+          <span class="ap-lbl">📈 Agent workload</span>
+          <span class="ap-val" id="t-p-workload-pct">—</span>
+        </div>
+        <div class="ap-row" id="t-p-ot-row" style="display:none;">
+          <span class="ap-lbl">⏰ Overtime premium</span>
+          <span class="ap-val" id="t-p-ot" style="color:var(--amber);">—</span>
+        </div>
+
+        <!-- capacity breakdown -->
+        <div class="cap-breakdown">
+          <div class="cap-breakdown-title">Effective capacity / agent / month</div>
+          <div class="cap-row cb-header" style="margin-bottom:4px;">
+            <span class="cap-row-lbl" style="flex:1;color:var(--dim);">Factor</span>
+            <span class="cap-row-val" style="color:var(--dim);font-size:.6rem;width:48px;text-align:right;">Days</span>
+            <span class="cap-row-val" style="color:var(--dim);font-size:.6rem;width:80px;text-align:right;">1 Agent</span>
+          </div>
+          <div class="cap-row">
+            <span class="cap-row-lbl" style="flex:1;">Scheduled time</span>
+            <span class="cap-row-val" id="t-cb-raw" style="width:48px;text-align:right;">—</span>
+            <span class="cap-row-val" style="width:80px;text-align:right;color:var(--muted);">—</span>
+          </div>
+          <div class="cap-row">
+            <span class="cap-row-lbl" style="flex:1;">− Vacation &amp; sick (12.7%)</span>
+            <span class="cap-row-val deducted" id="t-cb-avail" style="width:48px;text-align:right;">—</span>
+            <span class="cap-row-val" id="t-cb-avail-cost1" style="width:80px;text-align:right;color:#ff3380;font-size:.72rem;">—</span>
+          </div>
+          <div class="cap-row">
+            <span class="cap-row-lbl" style="flex:1;">− Breaks &amp; admin (18.75%)</span>
+            <span class="cap-row-val deducted" id="t-cb-prod" style="width:48px;text-align:right;">—</span>
+            <span class="cap-row-val" id="t-cb-prod-cost1" style="width:80px;text-align:right;color:#ff3380;font-size:.72rem;">—</span>
+          </div>
+          <div class="cap-row">
+            <span class="cap-row-lbl" style="flex:1;">− Non-call time (25%)</span>
+            <span class="cap-row-val deducted" id="t-cb-occ" style="width:48px;text-align:right;">—</span>
+            <span class="cap-row-val" id="t-cb-occ-cost1" style="width:80px;text-align:right;color:#ff3380;font-size:.72rem;">—</span>
+          </div>
+          <div class="cap-row total" style="margin-top:6px;border-top:1px solid rgba(255,255,255,.07);padding-top:8px;">
+            <span class="cap-row-lbl" style="flex:1;">✓ Effective productive</span>
+            <span class="cap-row-val" id="t-cb-eff" style="width:48px;text-align:right;">—</span>
+            <span class="cap-row-val" style="width:80px;text-align:right;color:var(--dim);font-size:.7rem;">—</span>
+          </div>
+          <div class="cap-row" style="background:rgba(255,51,128,.05);border:1px solid rgba(255,51,128,.12);border-radius:6px;padding:8px 6px;margin-top:6px;">
+            <span class="cap-row-lbl" style="flex:1;color:#c06080;">💸 Paid but unproductive</span>
+            <span class="cap-row-val" id="t-cb-lost-days" style="width:48px;text-align:right;color:#ff3380;">—</span>
+            <span class="cap-row-val" id="t-cb-lost-cost1" style="width:80px;text-align:right;color:#ff3380;font-weight:600;">—</span>
+          </div>
+          <div class="cap-row" style="background:rgba(255,51,128,.09);border:1px solid rgba(255,51,128,.2);border-radius:6px;padding:8px 6px;margin-top:4px;">
+            <span class="cap-row-lbl" style="flex:1;color:#ff3380;font-weight:600;" id="t-cb-total-lbl">💸 Total loss — all agents</span>
+            <span class="cap-row-val" id="t-cb-lost-days-n" style="width:48px;text-align:right;color:#ff3380;font-weight:600;">—</span>
+            <span class="cap-row-val" id="t-cb-lost-costn" style="width:80px;text-align:right;color:#ff3380;font-weight:700;">—</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── SAVINGS ── -->
+    <div class="savings-wrap" style="margin-top:10px;">
+      <div class="savings-label">Monthly Savings with AI</div>
+      <div class="savings-val" id="t-r-save">—</div>
+      <div style="font-family:'DM Mono',monospace;font-size:.49rem;color:var(--dim);letter-spacing:.1em;text-transform:uppercase;margin-top:5px;">per month</div>
+      <div class="savings-note" id="t-savings-note">⚠ At this enquiry volume, automation costs exceed your current staffing cost. Consider volume discounts or a hybrid model.</div>
+    </div>
+
+    <!-- ── SETUP NOTE ── -->
+    <div class="setup-note" id="t-setup-note" style="margin-top:10px;">
+      <div class="s-left">
+        <strong>One-time setup fee</strong>
+        <span class="s-fine">Not included in monthly cost</span>
+      </div>
+      <div>
+        <div class="s-val">$1,375 – $1,875</div>
+        <div class="s-free">FREE</div>
+      </div>
+    </div>
+
+    <!-- ── PRICING NOTE ── -->
+    <div class="pricing-note">
+      <strong>Pricing tiers:</strong> RPA Bot — $125/mo, 2,500 MAU included, $0.04/extra MAU &nbsp;|&nbsp; AI Agent — $125/mo, 1,250 dialogues included, $0.06/extra dialogue. Setup free at &gt;50,000 MAU.
+    </div>
+
+  </div><!-- /#results -->
+</div>
+
+</div>
+
+<div class="panel panel-avatar" id="panel-avatar">
+<div class="calc">
+  <div class="header">
+    <div class="title">Avatar <span>ROI</span> Calculator</div>
+    <div class="badge-tag">Monthly Cost Estimator</div>
+  </div>
+
+  <!-- Service Type -->
+  <div class="sec">Service Type</div>
+  <div class="tier-wrap">
+    <div class="tier-btn active" onclick="avatarSetTier(0)">
+      <div class="tier-btn-name">Real-time Avatar</div>
+      <div class="tier-btn-range">$0.56 – $2.50 / min</div>
+      <div class="tier-note">Price varies by avatar quality &amp; compute</div>
+    </div>
+    <div class="tier-btn" onclick="avatarSetTier(1)">
+      <div class="tier-btn-name">Video Creation</div>
+      <div class="tier-btn-range">$0.25 – $1.00 / min</div>
+      <div class="tier-note">Volume discounts available</div>
+    </div>
+  </div>
+
+  <!-- Usage -->
+  <div class="sec">Monthly Usage</div>
+
+  <div class="sl-group">
+    <div class="sl-top"><span class="sl-label">Monthly interactions </span><span class="sl-val" id="a-v-enq">1,000</span></div>
+    <input type="range" id="a-s-enq" min="0" max="14" step="1" value="2" oninput="avatarGo()">
+  </div>
+
+  <div class="sl-group" style="margin-bottom:0">
+    <div class="sl-top"><span class="sl-label">Avg interaction duration</span><span class="sl-val" id="a-v-aht">5 <span class="sl-unit">min</span></span></div>
+    <input type="range" id="a-s-aht" min="1" max="30" step="1" value="5" oninput="avatarGo()">
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Result -->
+  <div class="result-box">
+    <div class="result-label">Estimated Monthly Avatar Cost</div>
+    <div class="result-val glow" id="a-r-cost">—</div>
+    <div class="per-mo">per month</div>
+    <div class="result-sub">
+      <div class="result-sub-item">
+        <div class="result-sub-label">Total minutes</div>
+        <div class="result-sub-val" id="a-r-mins">—</div>
+      </div>
+      <div class="result-sub-item">
+        <div class="result-sub-label">Rate range</div>
+        <div class="result-sub-val hi" id="a-r-rate">—</div>
+      </div>
+      <div class="result-sub-item">
+        <div class="result-sub-label">Interactions</div>
+        <div class="result-sub-val" id="a-r-enq">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Setup -->
+  <div class="setup-note">
+    <div class="s-left">
+      <strong>One-time setup fees</strong>
+      <span class="s-fine">Not included in monthly cost</span>
+    </div>
+    <div class="s-vals">
+      <span class="s-val">Visual $18,750</span>
+      <span class="s-val">Voice $12,500</span>
+    </div>
+  </div>
+
+</div>
+
+</div>
+</div><!-- /layout-scale -->
+
+<script>
+// ── Shared cursor
+const cur=document.getElementById('cur'),tr=document.getElementById('tr');
+let tx=0,ty=0,cx=0,cy=0;
+document.addEventListener('mousemove',e=>{tx=e.clientX;ty=e.clientY;cur.style.left=tx+'px';cur.style.top=ty+'px';});
+setInterval(()=>{cx+=(tx-cx)*.14;cy+=(ty-cy)*.14;tr.style.left=cx+'px';tr.style.top=cy+'px';},16);
+document.querySelectorAll('input').forEach(el=>{
+  el.addEventListener('mouseenter',()=>{cur.style.width='16px';cur.style.height='16px';cur.style.background='#00e5a0';});
+  el.addEventListener('mouseleave',()=>{cur.style.width='10px';cur.style.height='10px';cur.style.background='#00d4ff';});
+});
+
+// ── Shared helpers
+const STEPS=[100,500,1000,2500,5000,10000,25000,50000,75000,100000,150000,200000,300000,400000,500000];
+const $=id=>document.getElementById(id);
+const fmt=n=>'$'+Math.round(n).toLocaleString();
+const fmtR=(a,b)=>fmt(a)+' – '+fmt(b);
+const fmtN=n=>Math.round(n).toLocaleString();
+function track(el){const p=((+el.value-+el.min)/(+el.max-+el.min)*100).toFixed(1)+'%';el.style.setProperty('--pct',p);}
+
+const AVAIL_FACTOR = 0.873;
+const PROD_FACTOR  = 0.8125;
+const OCC_FACTOR   = 0.75;
+const AVG_HANDLING_MIN = 5;
+
+// ── Tab switcher
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelector('.tab.'+name).classList.add('active');
+  document.getElementById('panel-'+name).classList.add('active');
+}
+
+// ── VOICE
+function voiceGo(){
+  const calls  = STEPS[+$('v-s-calls').value]||STEPS[0];
+  const len    = +$('v-s-len').value;
+  const sal    = +$('v-s-sal').value;
+  const agents = +$('v-s-agents').value;
+  const hrs    = +$('v-s-hrs').value;
+  const days   = +$('v-s-days').value;
+
+  // Update labels
+  $('v-v-calls').textContent  = calls.toLocaleString();
+  $('v-v-len').innerHTML      = len+' <span class="sl-unit">min</span>';
+  $('v-v-sal').textContent    = '$'+sal.toLocaleString();
+  $('v-v-agents').textContent = agents;
+  $('v-v-hrs').textContent    = hrs;
+  $('v-v-days').textContent   = days;
+  ['v-s-calls','v-s-len','v-s-sal','v-s-agents','v-s-hrs','v-s-days'].forEach(id=>track($(id)));
+
+  // ── Core calculations ────────────────────────────────────────────────
+  const total_min   = calls * len;                             // total call minutes/month
+  const raw_cap     = hrs * 60 * days;                         // scheduled mins/agent/month
+  const after_avail = raw_cap * AVAIL_FACTOR;                  // after leave/holidays
+  const after_prod  = after_avail * PROD_FACTOR;               // after breaks/admin
+  const eff_cap     = after_prod * OCC_FACTOR;                 // effective productive mins
+  const min_needed  = Math.max(1, Math.ceil(total_min / eff_cap)); // minimum agents required
+
+  // ── VALIDATION: agents entered must be >= minimum needed ────────────
+  const errBox = $('v-error-box');
+  const results = $('v-results');
+
+  if(agents < min_needed){
+    errBox.classList.add('show');
+    results.classList.add('hidden');
+    $('v-error-body').innerHTML =
+      `To handle <strong>${calls.toLocaleString()} calls × ${len} min</strong> at ` +
+      `<strong>${hrs}h/day × ${days} days</strong>, you need at least ` +
+      `<strong>${min_needed} agent${min_needed>1?'s':''}</strong>. ` +
+      `You entered <strong>${agents}</strong>. ` +
+      `Please increase agents, reduce call volume, or increase Hours / day or Days / month.`;
+    return;
+  }
+
+  errBox.classList.remove('show');
+  results.classList.remove('hidden');
+
+  // ── Human cost with overtime premium ────────────────────────────────
+  // Standard month = 8hrs × 22 days = 176 hrs
+  // Any hours beyond 176/month = overtime at 1.5× rate
+  const STD_MONTH_HRS = 8 * 22;                          // 176 hrs baseline
+  const worked_hrs    = hrs * days;
+  const ot_hrs        = Math.max(0, worked_hrs - STD_MONTH_HRS);
+  const hourly_rate   = sal / STD_MONTH_HRS;             // base hourly from monthly salary
+  const ot_premium    = ot_hrs * hourly_rate * 0.5;      // 50% extra on OT hours only
+  const cost_per_agent = sal + ot_premium;               // total monthly cost per agent
+  const human_cost    = agents * cost_per_agent;
+
+  // ── Agent occupancy % (actual workload vs raw capacity) ──────────────
+  const occ_pct = (agents > 0 && raw_cap > 0)
+    ? Math.round((total_min / (agents * raw_cap)) * 100) : 0;
+
+  // ── AI costs ─────────────────────────────────────────────────────────
+  const rpa = 125 + Math.max(total_min - 1980, 0) * 0.05;  // RPA Bot (low)
+  const ai  = 125 + Math.max(total_min - 600,  0) * 0.09;  // AI Agent (high)
+
+  // ── Savings ──────────────────────────────────────────────────────────
+  const sav_lo = human_cost - ai;
+  const sav_hi = human_cost - rpa;
+
+  // ── Break-even ───────────────────────────────────────────────────────
+  const be_lo = sav_hi > 0 ? Math.ceil(5250 / sav_hi) : null;
+  const be_hi = sav_lo > 0 ? Math.ceil(6750 / sav_lo) : null;
+
+  // ── Store for panel ───────────────────────────────────────────────────
+  window._d = {calls,total_min,raw_cap,eff_cap,min_needed,agents,occ_pct,human_cost,cost_per_agent,ot_hrs,ot_premium,rpa,ai,sav_lo,sav_hi,be_lo,be_hi,hrs,days};
+
+  // ── Render outputs ────────────────────────────────────────────────────
+  $('v-r-ai').textContent  = fmtR(rpa, ai);
+  $('v-r-hm').textContent  = fmt(human_cost);
+
+  const sv = $('v-r-save');
+  sv.textContent = fmtR(sav_lo, sav_hi);
+  const neg = sav_hi < 0;
+  sv.style.color      = neg ? '#ff3380' : '#00e5a0';
+  sv.style.textShadow = neg ? '0 0 28px rgba(255,51,128,.22)' : '0 0 28px rgba(0,229,160,.22)';
+  $('v-savings-note').classList.toggle('show', neg);
+
+  $('v-setup-note').classList.toggle('is-free', calls >= 100000);
+
+  if($('v-ap').classList.contains('open')) voiceFillPanel();
+}
+
+function voiceFillPanel(){
+  const d = window._d || {};
+
+  // Workload
+  $('v-p-workload').textContent = fmtN(d.total_min) + ' min / month';
+
+  // Workload % — actual call minutes vs raw scheduled capacity
+  const wl    = d.occ_pct || 0;
+  const wlEl  = $('v-p-workload-pct');
+  let wlColor, wlLabel;
+  if(wl > 85)      { wlColor = '#ff3380'; wlLabel = wl + '% — ⚠ Overloaded'; }
+  else if(wl >= 70){ wlColor = '#ffb800'; wlLabel = wl + '% — Near capacity'; }
+  else if(wl >= 40){ wlColor = '#00e5a0'; wlLabel = wl + '% — Optimal'; }
+  else             { wlColor = '#8080a8'; wlLabel = wl + '% — Under-utilised'; }
+  wlEl.textContent  = wlLabel;
+  wlEl.style.color  = wlColor;
+
+  // Overtime row
+  const otRow = $('v-p-ot-row');
+  if(d.ot_hrs > 0){
+    otRow.style.display = 'flex';
+    $('v-p-ot').textContent = '+$' + Math.round(d.ot_premium * d.agents).toLocaleString()
+      + ' (' + Math.round(d.ot_hrs) + ' OT hrs/agent at 1.5×)';
+  } else {
+    otRow.style.display = 'none';
+  }
+
+  // Capacity breakdown
+  const raw = d.raw_cap || 0;
+  // Convert minutes to days — whole numbers, no decimals
+  const dayMins = (d.hrs || 8) * 60;
+  const toD     = mins => Math.round(mins / dayMins) + ' d';
+  const agents  = d.agents || 1;
+  const sal     = d.human_cost / agents;  // per-agent salary
+
+  // Minutes lost per factor (per agent)
+  const lost_avail = raw * (1 - AVAIL_FACTOR);
+  const lost_prod  = raw * AVAIL_FACTOR * (1 - PROD_FACTOR);
+  const lost_occ   = raw * AVAIL_FACTOR * PROD_FACTOR * (1 - OCC_FACTOR);
+  const lost_total = raw - d.eff_cap;
+
+  // Cost helpers
+  const c1 = m => '$' + Math.round((m / raw) * sal).toLocaleString();          // 1 agent
+  const cn = m => '$' + Math.round((m / raw) * sal * agents).toLocaleString(); // all agents
+
+  // Days column
+  $('v-cb-raw').textContent       = Math.round(raw / dayMins) + ' d';
+  $('v-cb-avail').textContent     = toD(lost_avail);
+  $('v-cb-prod').textContent      = toD(lost_prod);
+  $('v-cb-occ').textContent       = toD(lost_occ);
+  $('v-cb-eff').textContent       = toD(d.eff_cap);
+  $('v-cb-lost-days').textContent = toD(lost_total);
+
+  // 1-agent cost column
+  $('v-cb-avail-cost1').textContent = c1(lost_avail);
+  $('v-cb-prod-cost1').textContent  = c1(lost_prod);
+  $('v-cb-occ-cost1').textContent   = c1(lost_occ);
+  $('v-cb-lost-cost1').textContent  = c1(lost_total);
+
+  // Total row: 1-agent loss × number of agents
+  $('v-cb-lost-days-n').textContent = toD(lost_total);
+  $('v-cb-lost-costn').textContent  = cn(lost_total);
+  $('v-cb-total-lbl').textContent   = '💸 Total loss — ' + agents + ' agent' + (agents > 1 ? 's' : '');
+}
+
+function voiceTogglePanel(){
+  const p = $('v-ap');
+  p.classList.contains('open') ? p.classList.remove('open') : (voiceFillPanel(), p.classList.add('open'));
+}
+
+// ── TEXT
+function textGo(){
+  const enq    = STEPS[+$('t-s-enq').value] || STEPS[0];
+  const sal    = +$('t-s-sal').value;
+  const agents = +$('t-s-agents').value;
+  const hrs    = +$('t-s-hrs').value;
+  const days   = +$('t-s-days').value;
+  const AVG_HANDLING_MIN = +$('t-s-aht').value;
+
+  // Labels
+  $('t-v-enq').textContent    = enq.toLocaleString();
+  $('t-v-sal').textContent    = '$'+sal.toLocaleString();
+  $('t-v-agents').textContent = agents;
+  $('t-v-hrs').textContent    = hrs;
+  $('t-v-days').textContent   = days;
+  $('t-v-aht').innerHTML      = AVG_HANDLING_MIN + ' <span class="sl-unit">min</span>';
+  ['t-s-enq','t-s-sal','t-s-agents','t-s-hrs','t-s-days'].forEach(id=>track($(id)));
+
+  // ── Core calculations ────────────────────────────────────────────────
+  const total_min  = enq * AVG_HANDLING_MIN;
+  const raw_cap    = hrs * 60 * days;
+  const after_avail= raw_cap * AVAIL_FACTOR;
+  const after_prod = after_avail * PROD_FACTOR;
+  const eff_cap    = after_prod * OCC_FACTOR;
+  const min_needed = Math.max(1, Math.ceil(total_min / eff_cap));
+
+  // ── VALIDATION ───────────────────────────────────────────────────────
+  const errBox = $('t-error-box');
+  const results= $('t-results');
+
+  if(agents < min_needed){
+    errBox.classList.add('show');
+    results.classList.add('hidden');
+    $('t-error-body').innerHTML =
+      `To handle <strong>${enq.toLocaleString()} enquiries</strong> at ` +
+      `<strong>${hrs}h/day × ${days} days</strong>, you need at least ` +
+      `<strong>${min_needed} agent${min_needed>1?'s':''}</strong>. ` +
+      `You entered <strong>${agents}</strong>. ` +
+      `Please increase agents, reduce enquiry volume, or increase Hours / day or Days / month.`;
+    return;
+  }
+
+  errBox.classList.remove('show');
+  results.classList.remove('hidden');
+
+  // ── Human cost with overtime ─────────────────────────────────────────
+  const STD_MONTH_HRS  = 8 * 22;
+  const worked_hrs     = hrs * days;
+  const ot_hrs         = Math.max(0, worked_hrs - STD_MONTH_HRS);
+  const hourly_rate    = sal / STD_MONTH_HRS;
+  const ot_premium     = ot_hrs * hourly_rate * 0.5;
+  const cost_per_agent = sal + ot_premium;
+  const human_cost     = agents * cost_per_agent;
+
+  // ── Workload % ───────────────────────────────────────────────────────
+  const occ_pct = (agents > 0 && raw_cap > 0)
+    ? Math.round((total_min / (agents * raw_cap)) * 100) : 0;
+
+  // ── Text bot costs ───────────────────────────────────────────────────
+  // RPA Bot: $125/mo base, 2,500 MAU included, $0.04/extra MAU
+  const rpa = 125 + Math.max(enq - 2500, 0) * 0.04;
+  // AI Agent: $125/mo base, 1,250 dialogues included, $0.06/extra
+  const ai  = 125 + Math.max(enq - 1250, 0) * 0.06;
+
+  // ── Savings ──────────────────────────────────────────────────────────
+  const sav_lo = human_cost - ai;
+  const sav_hi = human_cost - rpa;
+
+  // ── Break-even: setup $1,375–$1,875 ─────────────────────────────────
+  const be_lo = sav_hi > 0 ? Math.ceil(1375 / sav_hi) : null;
+  const be_hi = sav_lo > 0 ? Math.ceil(1875 / sav_lo) : null;
+
+  window._d = {enq,total_min,raw_cap,eff_cap,min_needed,agents,occ_pct,
+               human_cost,cost_per_agent,ot_hrs,ot_premium,rpa,ai,
+               sav_lo,sav_hi,be_lo,be_hi,hrs,days,sal,AVG_HANDLING_MIN};
+
+  // ── Render ───────────────────────────────────────────────────────────
+  $('t-r-ai').textContent = fmtR(rpa, ai);
+  $('t-r-hm').textContent = fmt(human_cost);
+
+  const sv = $('t-r-save');
+  sv.textContent      = fmtR(sav_lo, sav_hi);
+  const neg           = sav_hi < 0;
+  sv.style.color      = neg ? '#ff3380' : '#00e5a0';
+  sv.style.textShadow = neg ? '0 0 28px rgba(255,51,128,.22)' : '0 0 28px rgba(0,229,160,.22)';
+  $('t-savings-note').classList.toggle('show', neg);
+
+  $('t-setup-note').classList.toggle('is-free', enq >= 50000);
+
+  if($('t-ap').classList.contains('open')) textFillPanel();
+}
+
+function textFillPanel(){
+  const d = window._d || {};
+
+  $('t-p-enq').textContent = fmtN(d.enq) + ' enquiries / month  ·  ' + (d.AVG_HANDLING_MIN||5) + ' min AHT';
+
+  // Workload %
+  const wl   = d.occ_pct || 0;
+  const wlEl = $('t-p-workload-pct');
+  let wlColor, wlLabel;
+  if(wl > 85)      { wlColor='#ff3380'; wlLabel=wl+'% — ⚠ Overloaded'; }
+  else if(wl >= 70){ wlColor='#ffb800'; wlLabel=wl+'% — Near capacity'; }
+  else if(wl >= 40){ wlColor='#00e5a0'; wlLabel=wl+'% — Optimal'; }
+  else             { wlColor='#8080a8'; wlLabel=wl+'% — Under-utilised'; }
+  wlEl.textContent = wlLabel;
+  wlEl.style.color = wlColor;
+
+  // Overtime
+  const otRow = $('t-p-ot-row');
+  if(d.ot_hrs > 0){
+    otRow.style.display = 'flex';
+    $('t-p-ot').textContent = '+$' + Math.round(d.ot_premium * d.agents).toLocaleString()
+      + ' (' + Math.round(d.ot_hrs) + ' OT hrs/agent at 1.5×)';
+  } else {
+    otRow.style.display = 'none';
+  }
+
+  // Capacity breakdown
+  const raw     = d.raw_cap || 0;
+  const dayMins = (d.hrs || 8) * 60;
+  const toD     = mins => Math.round(mins / dayMins) + ' d';
+  const agents  = d.agents || 1;
+  const sal     = d.sal || (d.human_cost / agents);
+
+  const lost_avail = raw * (1 - AVAIL_FACTOR);
+  const lost_prod  = raw * AVAIL_FACTOR * (1 - PROD_FACTOR);
+  const lost_occ   = raw * AVAIL_FACTOR * PROD_FACTOR * (1 - OCC_FACTOR);
+  const lost_total = raw - d.eff_cap;
+
+  const c1 = m => '$' + Math.round((m / raw) * sal).toLocaleString();
+  const cn = m => '$' + Math.round((m / raw) * sal * agents).toLocaleString();
+
+  $('t-cb-raw').textContent       = Math.round(raw / dayMins) + ' d';
+  $('t-cb-avail').textContent     = toD(lost_avail);
+  $('t-cb-prod').textContent      = toD(lost_prod);
+  $('t-cb-occ').textContent       = toD(lost_occ);
+  $('t-cb-eff').textContent       = toD(d.eff_cap);
+  $('t-cb-lost-days').textContent = toD(lost_total);
+
+  $('t-cb-avail-cost1').textContent = c1(lost_avail);
+  $('t-cb-prod-cost1').textContent  = c1(lost_prod);
+  $('t-cb-occ-cost1').textContent   = c1(lost_occ);
+  $('t-cb-lost-cost1').textContent  = c1(lost_total);
+
+  $('t-cb-lost-days-n').textContent = toD(lost_total);
+  $('t-cb-lost-costn').textContent  = cn(lost_total);
+  $('t-cb-total-lbl').textContent   = '💸 Total loss — ' + agents + ' agent' + (agents > 1 ? 's' : '');
+}
+
+function textTogglePanel(){
+  const p = $('t-ap');
+  p.classList.contains('open') ? p.classList.remove('open') : (textFillPanel(), p.classList.add('open'));
+}
+
+// ── AVATAR
+// AVATAR
+
+const TIERS=[
+  {name:'Real-time Avatar', lo:0.56, hi:2.50},
+  {name:'Video Creation',   lo:0.25, hi:1.00}
+];
+let activeTier=0;
+
+function avatarSetTier(i){
+  activeTier=i;
+  document.querySelectorAll('.tier-btn').forEach((b,idx)=>b.classList.toggle('active',idx===i));
+  avatarGo();
+}
+
+
+
+
+
+
+function avatarGo(){
+  const enq  = STEPS[+$('a-s-enq').value]||STEPS[0];
+  const AHT  = +$('a-s-aht').value;
+  const tier = TIERS[activeTier];
+
+  $('a-v-enq').textContent = enq.toLocaleString();
+  $('a-v-aht').innerHTML   = AHT+' <span class="sl-unit">min</span>';
+  ['a-s-enq','a-s-aht'].forEach(id=>track($(id)));
+
+  const total_min = enq * AHT;
+  const cost_lo   = total_min * tier.lo;
+  const cost_hi   = total_min * tier.hi;
+
+  $('a-r-cost').textContent = fmtR(cost_lo, cost_hi);
+  $('a-r-mins').textContent = fmtN(total_min)+' min';
+  $('a-r-rate').textContent = '$'+tier.lo.toFixed(2)+' – $'+tier.hi.toFixed(2)+'/min';
+  $('a-r-enq').textContent  = fmtN(enq);
+}
+
+voiceGo(); textGo(); avatarGo();
+</script>
+</body>
+</html>
