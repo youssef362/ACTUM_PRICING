@@ -315,15 +315,11 @@ input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.2);box-shadow:0 
     <input type="range" id="v-s-agents" min="1" max="200" step="1" value="1" oninput="voiceGo()">
   </div>
 
-  <div class="sl-pair" style="margin-bottom:0">
-    <div class="sl-group" style="margin-bottom:0">
-      <div class="sl-top"><span class="sl-label" style="font-size:.8rem;">Hours / day</span><span class="sl-val" id="v-v-hrs">8</span></div>
-      <input type="range" id="v-s-hrs" min="1" max="24" step="1" value="8" oninput="voiceGo()">
-    </div>
-    <div class="sl-group" style="margin-bottom:0">
-      <div class="sl-top"><span class="sl-label" style="font-size:.8rem;">Days / month</span><span class="sl-val" id="v-v-days">22</span></div>
-      <input type="range" id="v-s-days" min="1" max="31" step="1" value="22" oninput="voiceGo()">
-    </div>
+  <div style="display:none">
+    <span id="v-v-hrs">8</span>
+    <input type="range" id="v-s-hrs" min="1" max="24" step="1" value="8" oninput="voiceGo()">
+    <span id="v-v-days">22</span>
+    <input type="range" id="v-s-days" min="1" max="31" step="1" value="22" oninput="voiceGo()">
   </div>
 
   <!-- ── VALIDATION ERROR ── -->
@@ -481,15 +477,11 @@ input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.2);box-shadow:0 
     <input type="range" id="t-s-agents" min="1" max="200" step="1" value="1" oninput="textGo()">
   </div>
 
-  <div class="sl-pair" style="margin-bottom:0">
-    <div class="sl-group" style="margin-bottom:0">
-      <div class="sl-top"><span class="sl-label" style="font-size:.8rem;">Hours / day</span><span class="sl-val" id="t-v-hrs">8</span></div>
-      <input type="range" id="t-s-hrs" min="1" max="24" step="1" value="8" oninput="textGo()">
-    </div>
-    <div class="sl-group" style="margin-bottom:0">
-      <div class="sl-top"><span class="sl-label" style="font-size:.8rem;">Days / month</span><span class="sl-val" id="t-v-days">22</span></div>
-      <input type="range" id="t-s-days" min="1" max="31" step="1" value="22" oninput="textGo()">
-    </div>
+  <div style="display:none">
+    <span id="t-v-hrs">8</span>
+    <input type="range" id="t-s-hrs" min="1" max="24" step="1" value="8" oninput="textGo()">
+    <span id="t-v-days">22</span>
+    <input type="range" id="t-s-days" min="1" max="31" step="1" value="22" oninput="textGo()">
   </div>
 
   <!-- ── VALIDATION ERROR ── -->
