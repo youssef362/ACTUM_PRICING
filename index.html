@@ -245,7 +245,7 @@ input[type=range]:hover::-webkit-slider-thumb{transform:scale(1.2);box-shadow:0 
 .tier-btn.active .tier-note{color:#7050a0;}
 .result-box{background:var(--card2);border:1px solid rgba(136,85,255,.18);border-radius:14px;padding:24px 20px 20px;text-align:center;position:relative;overflow:hidden;}
 .result-box::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(136,85,255,.5),transparent);}
-.result-label{font-size:.64rem;color:var(--muted);margin-bottom:10px;letter-spacing:.06em;}
+.result-label{font-size:1rem;color:var(--muted);margin-bottom:10px;letter-spacing:.06em;font-weight:600;}
 .result-val{font-family:'DM Mono',monospace;font-weight:700;font-size:clamp(1rem,3vw,1.5rem);color:#b090ff;line-height:1;white-space:nowrap;}
 .result-val.glow{text-shadow:0 0 36px rgba(136,85,255,.45);}
 .per-mo{font-family:'DM Mono',monospace;font-size:.44rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;margin-top:7px;}
@@ -699,7 +699,7 @@ document.querySelectorAll('input').forEach(el=>{
 const STEPS=[100,500,1000,2500,5000,10000,25000,50000,75000,100000,150000,200000,300000,400000,500000];
 const $=id=>document.getElementById(id);
 const fmt=n=>'$'+Math.round(n).toLocaleString();
-const fmtR=(a,b)=>fmt(a)+' – '+fmt(b);
+const fmtR=(a,b)=>Math.round(a)===Math.round(b)?fmt(a):fmt(a)+' – '+fmt(b);
 const fmtN=n=>Math.round(n).toLocaleString();
 function track(el){const p=((+el.value-+el.min)/(+el.max-+el.min)*100).toFixed(1)+'%';el.style.setProperty('--pct',p);}
 
